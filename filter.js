@@ -128,7 +128,6 @@
         transition: all 0.3s ease;
     } 
 
-    /* Toggle Switch Styles */
     .toggle-container {
         display: flex;
         background: #111827;
@@ -216,19 +215,13 @@
         </div> 
     
         <div class="cyber-body"> 
-            
-            <label class="cyber-label"> 
-                Payment Type 
-            </label>
+            <label class="cyber-label">Payment Type</label>
             <div class="toggle-container" id="orderTypeToggle">
                 <div class="toggle-option active" data-value="1">UPI</div>
                 <div class="toggle-option" data-value="2">BANK</div>
             </div>
 
-            <label class="cyber-label"> 
-                Amount 
-            </label> 
-    
+            <label class="cyber-label">Amount</label> 
             <input 
                 type="text" 
                 id="buyAmount" 
@@ -239,28 +232,11 @@
             > 
     
             <div class="cyber-buttons"> 
-                <button 
-                    id="startBtn" 
-                    class="cyber-btn start-btn" 
-                > 
-                    START 
-                </button> 
-    
-                <button 
-                    id="stopBtn" 
-                    class="cyber-btn stop-btn" 
-                > 
-                    STOP 
-                </button> 
+                <button id="startBtn" class="cyber-btn start-btn">START</button> 
+                <button id="stopBtn" class="cyber-btn stop-btn">STOP</button> 
             </div> 
     
-            <div 
-                class="cyber-status" 
-                id="cyberStatus" 
-            > 
-                Ready 
-            </div> 
-    
+            <div class="cyber-status" id="cyberStatus">Ready</div> 
         </div>`;
         document.body.appendChild(panel);
     }
@@ -275,13 +251,11 @@
     let selectedOrderType = 1;
     let isPremiumMember = false;
 
-    // Toggle logic
     orderTypeToggle.querySelectorAll(".toggle-option").forEach(opt => {
         opt.onclick = () => {
             orderTypeToggle.querySelector(".active").classList.remove("active");
             opt.classList.add("active");
             selectedOrderType = Number(opt.dataset.value);
-            console.log("Selected Order Type:", selectedOrderType === 1 ? "UPI" : "BANK");
         };
     });
 
@@ -289,8 +263,6 @@
         console.log(msg);
         if (statusEl) {
             statusEl.innerText = msg;
-            
-            // Check for error or warning keywords
             const isError = /denied|not found|Error|Stopped|🔴/i.test(msg);
             const isSuccess = /SUCCESS|🟢/i.test(msg);
             
@@ -316,11 +288,9 @@
         }
     }
 
-    
     // =========================
-    // FIREBASE
+    // SUPABASE SETUP
     // =========================
-
     async function loadScript(src) {
         return new Promise((resolve, reject) => {
             const s = document.createElement("script");
@@ -331,41 +301,35 @@
         });
     }
 
-    if (!window.firebase) {
-        await loadScript(
-            "https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"
-        );
-
-        await loadScript(
-            "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"
-        );
+    if (!window.supabase) {
+        await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
     }
 
-    if (!firebase.apps.length) {
-        firebase.initializeApp({
-            apiKey: "AIzaSyCI7WjTsCfYrFU0U38y84PvSE1ysoOmc68",
-            projectId: "wallet-automation-a59da"
-        });
-    }
+    const SUPABASE_URL = "https://jjvfuuprofnrytiwypvb.supabase.co";
+    // PASTE YOUR COPIED KEY INSIDE THE QUOTES BELOW
+    const SUPABASE_KEY = "sb_publishable_04fiu8WUbHqqd6Kvn4JcVg_9-Fs9R47";
 
-    let balanceInterval = null;
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     // =========================
-    // TOKEN FETCH
+    // TOKEN FETCH & AUTH
     // =========================
     let token = null;
 
     try {
+        const userCheckResult = await checkAllowedFromSupabase();
+        const isAllowedUser = userCheckResult.allowed;
+        isPremiumMember = userCheckResult.isPremium;
 
-       // Bypass remote access verification
-const isAllowedUser = true;
-isPremiumMember = true;
-        
-        // Initialize amount and button state
+        if (!isAllowedUser) {
+            setStatus("Access denied");
+            return;
+        }
+
         function updateStartButtonState() {
             const amount = Number(amountInput.value);
             if (!isPremiumMember) {
@@ -385,19 +349,14 @@ isPremiumMember = true;
             }
         }
 
-        // Set default amount to 2000 for non-premium members
         if (!isPremiumMember) {
-            amountInput.value = "2000";
+            amountInput.value = "1000";
         }
 
-        // Add input listener to update button state
         amountInput.addEventListener('input', updateStartButtonState);
-
-        // Initialize button state
         updateStartButtonState();
 
         const rawToken = localStorage.getItem("token");
-
         if (rawToken) {
             try {
                 token = JSON.parse(rawToken)?.value || rawToken;
@@ -422,10 +381,7 @@ isPremiumMember = true;
     // =========================
     // DEVICE CODE
     // =========================
-    const deviceCode =
-        localStorage.getItem("arb_device_code") ||
-        crypto.randomUUID().replace(/-/g, "");
-
+    const deviceCode = localStorage.getItem("arb_device_code") || crypto.randomUUID().replace(/-/g, "");
     localStorage.setItem("arb_device_code", deviceCode);
 
     const headers = {
@@ -482,9 +438,7 @@ isPremiumMember = true;
             y = e.clientY - panel.offsetTop;
         });
 
-        document.addEventListener("mouseup", () => {
-            drag = false;
-        });
+        document.addEventListener("mouseup", () => drag = false);
 
         document.addEventListener("mousemove", e => {
             if (!drag) return;
@@ -500,22 +454,15 @@ isPremiumMember = true;
     // =========================
     async function runMainLoop(targetAmount, type) {
         while (isRunning) {
-
             try {
-
                 const typeLabel = type === 1 ? "UPI" : "BANK";
                 setStatus(`Checking ${typeLabel} orders for ₹${targetAmount}...`);
 
-                const listRes = await fetch(
-                    "https://apiweb.apiarbpay.com/ar-wallet/buyCenter/buyList", {
-                        method: "POST",
-                        headers,
-                        body: JSON.stringify({
-                            orderType: type,
-                            pageNo: 1
-                        })
-                    }
-                );
+                const listRes = await fetch("https://apiweb.apiarbpay.com/ar-wallet/buyCenter/buyList", {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify({ orderType: type, pageNo: 1 })
+                });
 
                 const listData = await listRes.json();
                 const orders = listData?.data?.list || [];
@@ -526,9 +473,7 @@ isPremiumMember = true;
                     continue;
                 }
 
-                const candidates = orders.filter(
-                    item => Number(item.amount) === targetAmount
-                );
+                const candidates = orders.filter(item => Number(item.amount) === targetAmount);
 
                 if (!candidates.length) {
                     setStatus(`Waiting for order ₹${targetAmount}`);
@@ -549,50 +494,40 @@ isPremiumMember = true;
                     };
 
                     try {
-                        const beforeBuyRes = await fetch(
-                            "https://apiweb.apiarbpay.com/ar-wallet/buyCenter/beforeBuy", {
-                                method: "POST",
-                                headers,
-                                body: JSON.stringify(payload)
-                            }
-                        );
+                        const beforeBuyRes = await fetch("https://apiweb.apiarbpay.com/ar-wallet/buyCenter/beforeBuy", {
+                            method: "POST",
+                            headers,
+                            body: JSON.stringify(payload)
+                        });
 
                         const beforeBuyData = await beforeBuyRes.json();
+                        if (beforeBuyData.code !== "1") continue;
 
-                        if (beforeBuyData.code !== "1") {
-                            continue;
-                        }
-
-                        const buyRes = await fetch(
-                            "https://apiweb.apiarbpay.com/ar-wallet/buyCenter/buy", {
-                                method: "POST",
-                                headers,
-                                body: JSON.stringify({
-                                    amount: order.amount,
-                                    platformOrder: order.platformOrder,
-                                    payType: order.payType,
-                                    orderType: order.orderType,
-                                    buyBankCode: "freeCharge",
-                                    buyerKycId: ""
-                                })
-                            }
-                        );
+                        const buyRes = await fetch("https://apiweb.apiarbpay.com/ar-wallet/buyCenter/buy", {
+                            method: "POST",
+                            headers,
+                            body: JSON.stringify({
+                                amount: order.amount,
+                                platformOrder: order.platformOrder,
+                                payType: order.payType,
+                                orderType: order.orderType,
+                                buyBankCode: "freeCharge",
+                                buyerKycId: ""
+                            })
+                        });
 
                         const buyData = await buyRes.json();
-
                         if (buyData.code === "1" || buyData.msg === "Success") {
                             setStatus(`SUCCESS ₹${order.amount}`);
                             location.reload();
                             return;
                         }
-
                     } catch (err) {
                         console.error(err);
                     }
                 }
 
                 await sleep(300);
-
             } catch (e) {
                 console.error(e);
                 setStatus("Error. Retrying...");
@@ -601,166 +536,35 @@ isPremiumMember = true;
         }
     }
 
-    
-
     // =========================
-    // BALANCE UPDATE
+    // CHECK ALLOWED USER (SUPABASE)
     // =========================
-
-    async function updateUserBalance() {
-
+    async function checkAllowedFromSupabase() {
         try {
-
-            const userInfo = JSON.parse(
-                localStorage.getItem("userInfo")
-            );
-
-            const memberId =
-                userInfo?.value?.memberId ||
-                userInfo?.value?.memberld;
-
-            const balance =
-                userInfo?.balance ?? userInfo?.value?.balance;
-
-            if (
-                !memberId ||
-                balance === undefined ||
-                balance === null
-            ) {
-                return;
-            }
-
-            const db = firebase.firestore();
-
-            const snap = await db
-                .collection("members")
-                .where(
-                    "walletUserId",
-                    "==",
-                    String(memberId)
-                )
-                .limit(1)
-                .get();
-
-            if (snap.empty) {
-                return;
-            }
-
-            const doc = snap.docs[0];
-
-            const docRef = db
-                .collection("members")
-                .doc(doc.id);
-
-            const memberData = doc.data();
-
-            const previousBalance = Number(
-                memberData.balance ?? 0
-            );
-
-            const updatedBalance = Number(balance);
-
-            if (previousBalance === updatedBalance) {
-                return;
-            }
-
-            const difference =
-                updatedBalance - previousBalance;
-
-            await db.collection("transactions").add({
-                walletUserId: String(memberId),
-                previousBalance,
-                updatedBalance,
-                amount: Math.abs(difference),
-                type: difference > 0 ?
-                    "credit" :
-                    "debit",
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-            await docRef.update({
-                balance: updatedBalance,
-                balanceUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-        } catch (err) {
-
-            console.error(
-                "Balance sync error:",
-                err
-            );
-
-        }
-    }
-
-    // =========================
-    // START BALANCE SYNC
-    // =========================
-
-    function startBalanceSync() {
-
-        if (balanceInterval) {
-            return;
-        }
-
-        updateUserBalance();
-
-        balanceInterval = setInterval(
-            updateUserBalance,
-            15000
-        );
-    }
-
-    // =========================
-    // CHECK ALLOWED USER
-    // =========================
-
-    async function checkAllowedFromFirebase() {
-
-        try {
-
-            const userInfo = JSON.parse(
-                localStorage.getItem("userInfo")
-            );
-
-            const memberId =
-                userInfo?.value?.memberId ||
-                userInfo?.value?.memberld;
+            const userInfo = JSON.parse(localStorage.getItem("userInfo"));
+            const memberId = userInfo?.value?.memberId || userInfo?.value?.memberld;
 
             if (!memberId) {
                 return { allowed: false, isPremium: false };
             }
 
-            const snap = await firebase
-                .firestore()
-                .collection("members")
-                .where(
-                    "walletUserId",
-                    "==",
-                    String(memberId)
-                )
-                .where(
-                    "active",
-                    "==",
-                    true
-                )
-                .limit(1)
-                .get();
+           const { data, error } = await supabaseClient
+    .from("members")
+    .select("active, is_premium")
+    .eq("wallet_user_id", String(memberId))
+    .eq("active", true)
+    .single();
 
-            if (snap.empty) {
+            if (error || !data) {
                 return { allowed: false, isPremium: false };
             }
 
-            const memberData = snap.docs[0].data();
             return { 
                 allowed: true, 
-                isPremium: memberData.is_premium === true 
+                isPremium: data.is_premium === true 
             };
-
         } catch {
-
             return { allowed: false, isPremium: false };
-
         }
     }
 
