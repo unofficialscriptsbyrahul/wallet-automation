@@ -321,12 +321,12 @@
     let token = null;
 
     try {
-        const userCheckResult = await checkAllowedFromSupabase();
+       const userCheckResult = await checkAllowedFromSupabase();
         const isAllowedUser = userCheckResult.allowed;
         isPremiumMember = userCheckResult.isPremium;
 
         if (!isAllowedUser) {
-            setStatus("Access denied");
+            setStatus(userCheckResult.reason || "Access denied");
             return;
         }
 
@@ -536,7 +536,7 @@
         }
     }
 
-    // =========================
+// =========================
     // CHECK ALLOWED USER (SUPABASE)
     // =========================
     async function checkAllowedFromSupabase() {
@@ -545,18 +545,29 @@
             const memberId = userInfo?.value?.memberId || userInfo?.value?.memberld;
 
             if (!memberId) {
-                return { allowed: false, isPremium: false };
+                return { allowed: false, isPremium: false, reason: "No user info" };
             }
 
-           const { data, error } = await supabaseClient
-    .from("members")
-    .select("active, is_premium")
-    .eq("wallet_user_id", String(memberId))
-    .eq("active", true)
-    .single();
+            // Query active status, premium flag, and expiry date
+            const { data, error } = await supabaseClient
+                .from("members")
+                .select("active, is_premium, expires_at")
+                .eq("wallet_user_id", String(memberId))
+                .eq("active", true)
+                .single();
 
             if (error || !data) {
-                return { allowed: false, isPremium: false };
+                return { allowed: false, isPremium: false, reason: "Access denied" };
+            }
+
+            // Check if subscription has expired
+            if (data.expires_at) {
+                const expiryTime = new Date(data.expires_at).getTime();
+                const currentTime = Date.now();
+
+                if (currentTime > expiryTime) {
+                    return { allowed: false, isPremium: false, reason: "Subscription expired" };
+                }
             }
 
             return { 
@@ -564,7 +575,7 @@
                 isPremium: data.is_premium === true 
             };
         } catch {
-            return { allowed: false, isPremium: false };
+            return { allowed: false, isPremium: false, reason: "Verification error" };
         }
     }
 
