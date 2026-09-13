@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supabase Member Manager</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      display: flex;
+      justify-content: center;
+      padding: 30px 15px;
+      margin: 0;
+    }
+    .container {
+      width: 100%;
+      max-width: 450px;
+    }
+    h2.title {
+      text-align: center;
+      margin-bottom: 25px;
+      color: #111;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    }
+    .card h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 16px;
+      color: #222;
+    }
+    label {
+      font-size: 12px;
+      color: #555;
+      display: block;
+      margin-bottom: 5px;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    button {
+      width: 100%;
+      padding: 11px;
+      border: 1px solid #bbb;
+      background: #eee;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: bold;
+      transition: 0.2s;
+    }
+    button:hover {
+      background: #e2e2e2;
+    }
+    .status {
+      text-align: center;
+      font-size: 13px;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2 class="title">Supabase Member Manager</h2>
+
+  <!-- Insert Member Card -->
+  <div class="card">
+    <h3>Insert Member</h3>
+    
+    <label>Name</label>
+    <input type="text" id="insName" placeholder="e.g. John" />
+
+    <label>Member ID (Wallet User ID)</label>
+    <input type="text" id="insMemberId" placeholder="e.g. 26866223" />
+
+    <label>Active</label>
+    <select id="insActive">
+      <option value="true">true</option>
+      <option value="false">false</option>
+    </select>
+
+    <label>Is Premium</label>
+    <select id="insPremium">
+      <option value="true">true</option>
+      <option value="false">false</option>
+    </select>
+
+    <label>Expires In (Days)</label>
+    <input type="number" id="insDays" placeholder="30 (leave blank for permanent)" />
+
+    <button onclick="insertMember()">Insert Member</button>
+    <div id="insStatus" class="status"></div>
+  </div>
+
+  <!-- Delete Member Card -->
+  <div class="card">
+    <h3>Delete Member</h3>
+    
+    <label>Member ID / Database ID</label>
+    <input type="text" id="delId" placeholder="Enter ID" />
+
+    <button onclick="deleteMember()">Delete Member</button>
+    <div id="delStatus" class="status"></div>
+  </div>
+</div>
+
+<script>
+  // Supabase Credentials
+  const SUPABASE_URL = "https://jjvfuuprofnrytiwypvb.supabase.co";
+  
+  // IMPORTANT: For insert/delete from a private admin panel, 
+  // paste your `service_role` secret key here, OR create an INSERT/DELETE policy in Supabase.
+  const SUPABASE_KEY = "sb_secret_uPD-9e62FvxxJXofmqb8LQ_LG66u2Zt";
+
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  async function insertMember() {
+    const name = document.getElementById("insName").value.trim();
+    const memberId = document.getElementById("insMemberId").value.trim();
+    const active = document.getElementById("insActive").value === "true";
+    const premium = document.getElementById("insPremium").value === "true";
+    const days = parseInt(document.getElementById("insDays").value);
+    const status = document.getElementById("insStatus");
+
+    if (!memberId) {
+      status.style.color = "red";
+      status.innerText = "Please enter a Member ID";
+      return;
+    }
+
+    let expiresAt = null;
+    if (!isNaN(days) && days > 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      expiresAt = d.toISOString();
+    }
+
+    status.style.color = "#555";
+    status.innerText = "Inserting...";
+
+    const { data, error } = await db.from("members").insert([
+      {
+        name: name || null,
+        wallet_user_id: memberId,
+        active: active,
+        is_premium: premium,
+        expires_at: expiresAt
+      }
+    ]);
+
+    if (error) {
+      status.style.color = "red";
+      status.innerText = error.message;
+    } else {
+      status.style.color = "green";
+      status.innerText = "Member added successfully!";
+      document.getElementById("insName").value = "";
+      document.getElementById("insMemberId").value = "";
+      document.getElementById("insDays").value = "";
+    }
+  }
+
+  async function deleteMember() {
+    const targetId = document.getElementById("delId").value.trim();
+    const status = document.getElementById("delStatus");
+
+    if (!targetId) {
+      status.style.color = "red";
+      status.innerText = "Please enter an ID";
+      return;
+    }
+
+    status.style.color = "#555";
+    status.innerText = "Deleting...";
+
+    // Try deleting matching wallet_user_id, or numeric primary id
+    let query = db.from("members").delete();
+    if (!isNaN(targetId) && targetId.length <= 6) {
+      query = query.or(`id.eq.${targetId},wallet_user_id.eq.${targetId}`);
+    } else {
+      query = query.eq("wallet_user_id", targetId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      status.style.color = "red";
+      status.innerText = error.message;
+    } else {
+      status.style.color = "green";
+      status.innerText = "Member deleted successfully!";
+      document.getElementById("delId").value = "";
+    }
+  }
+</script>
+
+</body>
+</html>
