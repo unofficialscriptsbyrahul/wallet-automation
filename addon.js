@@ -1,5 +1,5 @@
 (async () => {
-  // 1. Inject the Telegram Button
+  // 1. Telegram Button in Panel
   const btn = document.createElement('a');
   btn.href = 'https://t.me/+10N_SpxiQWA1NGY1';
   btn.target = '_blank';
@@ -9,7 +9,7 @@
   const panel = document.querySelector('#cyberPanel .cyber-body') || document.getElementById('cyberPanel');
   if (panel) panel.appendChild(btn);
 
-  // 2. Check Subscription Expiry
+  // 2. Centered Pulsing Warning Banner
   try {
     const rawUser = localStorage.getItem("userInfo");
     if (!rawUser) return;
@@ -23,7 +23,7 @@
         Authorization: "Bearer sb_publishable_04fiu8WUbHqqd6Kvn4JcVg_9-Fs9R47"
       }
     });
-    
+
     const data = await res.json();
     if (!data || !data[0] || !data[0].expires_at) return;
 
@@ -31,29 +31,65 @@
     const diffMs = expireTime - Date.now();
     const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-    // Show warning if 3 days or fewer remaining (or if expired)
-    if (daysLeft <= 3) {
-      const modal = document.createElement('div');
-      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:sans-serif;';
-      modal.innerHTML = `
-        <div style="background:#111827;border:1px solid #ff2d55;border-radius:14px;padding:24px;max-width:320px;width:100%;text-align:center;box-shadow:0 0 20px rgba(255,45,85,0.35);">
-          <div style="font-size:32px;margin-bottom:8px;">⚠️</div>
-          <h3 style="color:#fff;margin:0 0 8px;font-size:16px;text-transform:uppercase;">Subscription Expiring</h3>
-          <p style="color:#bbb;font-size:13px;line-height:1.4;margin:0 0 16px;">
-            ${daysLeft <= 0 ? 'Your access has expired.' : `Your subscription ends in <b style="color:#ff2d55">${daysLeft} day${daysLeft > 1 ? 's' : ''}</b>.`} Renew now to prevent bot disruption.
-          </p>
-          <a href="https://t.me/+10N_SpxiQWA1NGY1" target="_blank" style="display:block;background:#00f7ff;color:#000;padding:10px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:12px;text-transform:uppercase;margin-bottom:8px;">
-            RENEW VIA TELEGRAM
-          </a>
-          <button id="dismissRenew" style="background:transparent;border:none;color:#777;font-size:11px;cursor:pointer;text-decoration:underline;">
-            Dismiss
-          </button>
-        </div>
+    // Triggers if 3 days or fewer are remaining
+    if (daysLeft <= 3 && daysLeft > 0) {
+      const banner = document.createElement('div');
+      banner.id = "warnBanner";
+      banner.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 99999999;
+        background: rgba(17, 24, 39, 0.95);
+        border: 2px solid #ffcc00;
+        box-shadow: 0 0 30px rgba(255, 204, 0, 0.4), inset 0 0 15px rgba(255, 204, 0, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 22px 26px;
+        border-radius: 14px;
+        text-align: center;
+        width: 85%;
+        max-width: 320px;
+        box-sizing: border-box;
+        font-family: Arial, sans-serif;
       `;
-      document.body.appendChild(modal);
-      document.getElementById('dismissRenew').onclick = () => modal.remove();
+
+      banner.innerHTML = `
+        <div style="font-size: 26px; margin-bottom: 6px;">⚠️</div>
+        <div style="font-size: 15px; font-weight: bold; color: #ffcc00; letter-spacing: 0.5px; text-transform: uppercase;">
+          Subscription Expiring
+        </div>
+        <div style="font-size: 14px; color: #fff; margin: 10px 0 16px 0;">
+          Expiring in <span style="color: #ff3366; font-weight: bold; font-size: 16px;">${daysLeft} day${daysLeft > 1 ? 's' : ''}</span>!
+        </div>
+        <a href="https://t.me/+10N_SpxiQWA1NGY1" target="_blank" style="
+          display: block;
+          background: #ffcc00;
+          color: #000;
+          font-weight: 800;
+          font-size: 12px;
+          letter-spacing: 1px;
+          text-decoration: none;
+          padding: 10px 0;
+          border-radius: 8px;
+          text-transform: uppercase;
+          box-shadow: 0 4px 12px rgba(255, 204, 0, 0.3);
+        ">Renew Now</a>
+        <button id="closeWarn" style="
+          margin-top: 10px;
+          background: none;
+          border: none;
+          color: #888;
+          font-size: 11px;
+          cursor: pointer;
+          text-decoration: underline;
+        ">Dismiss</button>
+      `;
+
+      document.body.appendChild(banner);
+      document.getElementById('closeWarn').onclick = () => banner.remove();
     }
   } catch (err) {
-    console.error("Renewal check failed:", err);
+    console.error("Warning check error:", err);
   }
 })();
